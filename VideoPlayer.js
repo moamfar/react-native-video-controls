@@ -31,8 +31,6 @@ export default class VideoPlayer extends Component {
     volume: 1,
     title: '',
     rate: 1,
-    showTimeRemaining: true,
-    showHours: false,
   };
 
   constructor(props) {
@@ -52,9 +50,8 @@ export default class VideoPlayer extends Component {
       // Controls
 
       isFullscreen:
-        this.props.isFullScreen || this.props.resizeMode === 'cover' || false,
-      showTimeRemaining: this.props.showTimeRemaining,
-      showHours: this.props.showHours,
+        this.props.isFullScreen  || false,
+      showTimeRemaining: true,
       volumeTrackWidth: 0,
       volumeFillWidth: 0,
       seekerFillWidth: 0,
@@ -158,6 +155,7 @@ export default class VideoPlayer extends Component {
     this.styles = {
       videoStyle: this.props.videoStyle || {},
       containerStyle: this.props.style || {},
+      seekerWidth: this?.props?.seekerWidth || null,
     };
   }
 
@@ -549,7 +547,15 @@ export default class VideoPlayer extends Component {
   calculateTime() {
     if (this.state.showTimeRemaining) {
       const time = this.state.duration - this.state.currentTime;
-      return `-${this.formatTime(time)}`;
+      return `${this.formatTime(time)}`;
+    }
+
+    return this.formatTime(this.state.currentTime);
+  }
+  calculateCurrentTime() {
+    if (this.state.showTimeRemaining) {
+      const time =  this.state.currentTime;
+      return `${this.formatTime(time)}`;
     }
 
     return this.formatTime(this.state.currentTime);
@@ -562,25 +568,13 @@ export default class VideoPlayer extends Component {
    * @return {string} formatted time string in mm:ss format
    */
   formatTime(time = 0) {
-    const symbol = this.state.showRemainingTime ? '-' : '';
+    const symbol = this.state.showRemainingTime ? '' : '';
     time = Math.min(Math.max(time, 0), this.state.duration);
 
-    if (!this.state.showHours) {
-      const formattedMinutes = padStart(Math.floor(time / 60).toFixed(0), 2, 0);
-      const formattedSeconds = padStart(Math.floor(time % 60).toFixed(0), 2, 0);
-
-      return `${symbol}${formattedMinutes}:${formattedSeconds}`;
-    }
-
-    const formattedHours = padStart(Math.floor(time / 3600).toFixed(0), 2, 0);
-    const formattedMinutes = padStart(
-      (Math.floor(time / 60) % 60).toFixed(0),
-      2,
-      0,
-    );
+    const formattedMinutes = padStart(Math.floor(time / 60).toFixed(0), 2, 0);
     const formattedSeconds = padStart(Math.floor(time % 60).toFixed(0), 2, 0);
 
-    return `${symbol}${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+    return `${symbol}${formattedMinutes}:${formattedSeconds}`;
   }
 
   /**
@@ -752,6 +746,9 @@ export default class VideoPlayer extends Component {
 
     if (this.styles.containerStyle !== nextProps.style) {
       this.styles.containerStyle = nextProps.style;
+    }
+    if (this.styles.seekerWidth !== nextProps.seekerWidth) {
+      this.styles.seekerWidth = nextProps.seekerWidth;
     }
   }
 
@@ -968,10 +965,8 @@ export default class VideoPlayer extends Component {
             marginTop: this.animations.topControl.marginTop,
           },
         ]}>
-        <ImageBackground
-          source={require('./assets/img/top-vignette.png')}
-          style={[styles.controls.column]}
-          imageStyle={[styles.controls.vignette]}>
+        <View
+          style={[styles.controls.column,{width:this.styles.seekerWidth}]}>
           <SafeAreaView style={styles.controls.topControlGroup}>
             {backControl}
             <View style={styles.controls.pullRight}>
@@ -979,7 +974,7 @@ export default class VideoPlayer extends Component {
               {fullscreenControl}
             </View>
           </SafeAreaView>
-        </ImageBackground>
+        </View>
       </Animated.View>
     );
   }
@@ -1047,31 +1042,30 @@ export default class VideoPlayer extends Component {
     const seekbarControl = this.props.disableSeekbar
       ? this.renderNullControl()
       : this.renderSeekbar();
-    const playPauseControl = this.props.disablePlayPause
-      ? this.renderNullControl()
-      : this.renderPlayPause();
+    const currentTimeControl =this.props.disableTimer ? this.renderNullControl() : this.renderCurrentTimer();
+    
 
     return (
       <Animated.View
         style={[
           styles.controls.bottom,
           {
+            
             opacity: this.animations.bottomControl.opacity,
             marginBottom: this.animations.bottomControl.marginBottom,
           },
         ]}>
-        <ImageBackground
-          source={require('./assets/img/bottom-vignette.png')}
-          style={[styles.controls.column]}
-          imageStyle={[styles.controls.vignette]}>
+        <View
+          style={[styles.controls.row,{width:this.styles.seekerWidth,alignItems:'center',justifyContent:'center'}]}
+       >
+            {currentTimeControl}
           {seekbarControl}
-          <SafeAreaView
-            style={[styles.controls.row, styles.controls.bottomControlGroup]}>
-            {playPauseControl}
-            {this.renderTitle()}
+          {/* <SafeAreaView
+            style={[styles.controls.row, styles.controls.bottomControlGroup,{width:this.styles.seekerWidth}]}> */}
+            {/* {this.renderTitle()} */}
             {timerControl}
-          </SafeAreaView>
-        </ImageBackground>
+          {/* </SafeAreaView> */}
+        </View>
       </Animated.View>
     );
   }
@@ -1161,6 +1155,13 @@ export default class VideoPlayer extends Component {
       styles.controls.timer,
     );
   }
+  renderCurrentTimer() {
+    return this.renderControl(
+      <Text style={styles.controls.currentTimerText}>{this.calculateCurrentTime()}</Text>,
+      this.methods.toggleTimer,
+      styles.controls.timer,
+    );
+  }
 
   /**
    * Show loading icon
@@ -1235,6 +1236,7 @@ export default class VideoPlayer extends Component {
           {this.renderError()}
           {this.renderLoader()}
           {this.renderTopControls()}
+          {this.state?.showControls && this.renderPlayPause()}
           {this.renderBottomControls()}
         </View>
       </TouchableWithoutFeedback>
@@ -1301,7 +1303,7 @@ const styles = {
       alignItems: 'center',
       justifyContent: 'space-between',
       height: null,
-      width: null,
+      width: '100%',
     },
     column: {
       flexDirection: 'column',
@@ -1311,7 +1313,8 @@ const styles = {
       width: null,
     },
     vignette: {
-      resizeMode: 'stretch',
+      resizeMode: 'cover',
+      
     },
     control: {
       padding: 16,
@@ -1333,9 +1336,11 @@ const styles = {
       justifyContent: 'flex-start',
     },
     bottom: {
-      alignItems: 'stretch',
-      flex: 2,
-      justifyContent: 'flex-end',
+      alignItems: 'center',
+      // flex: 2,
+      alignSelf:'center',
+      width:'100%',
+      justifyContent: 'flex-start',
     },
     topControlGroup: {
       alignSelf: 'stretch',
@@ -1361,9 +1366,13 @@ const styles = {
       flexDirection: 'row',
     },
     playPause: {
-      position: 'relative',
+      position: 'absolute',
       width: 80,
-      zIndex: 0,
+      zIndex: 100,
+      top:'auto',
+      bottom:'auto',
+      left:'auto',
+      right:'auto',
     },
     title: {
       alignItems: 'center',
@@ -1379,6 +1388,13 @@ const styles = {
     },
     timerText: {
       backgroundColor: 'transparent',
+      color: '#FFF',
+      fontSize: 11,
+      textAlign: 'left',
+    },
+    currentTimerText: {
+      backgroundColor: 'transparent',
+      width:'auto',
       color: '#FFF',
       fontSize: 11,
       textAlign: 'right',
@@ -1415,36 +1431,40 @@ const styles = {
   }),
   seekbar: StyleSheet.create({
     container: {
-      alignSelf: 'stretch',
+      // alignSelf: 'stretch',
       height: 28,
-      marginLeft: 20,
-      marginRight: 20,
+      width:'70%',
+      marginLeft: 5,
+      marginRight: 5,
     },
     track: {
-      backgroundColor: '#333',
-      height: 1,
+      backgroundColor: '#FFF',
+      height: 2,
       position: 'relative',
       top: 14,
       width: '100%',
+      borderRadius:50,
     },
     fill: {
+      borderRadius:50,
       backgroundColor: '#FFF',
-      height: 1,
+      height: 2,
       width: '100%',
     },
     handle: {
       position: 'absolute',
-      marginLeft: -7,
+      marginLeft: -8,
       height: 28,
       width: 28,
     },
     circle: {
       borderRadius: 12,
       position: 'relative',
-      top: 8,
-      left: 8,
+      top: 8.5,
+      left: 7,
       height: 12,
       width: 12,
     },
   }),
 };
+
