@@ -1,25 +1,16 @@
-import React, {Component} from 'react';
-import Video from 'react-native-video';
-import {
-  TouchableWithoutFeedback,
-  TouchableHighlight,
-  ImageBackground,
-  PanResponder,
-  StyleSheet,
-  Animated,
-  SafeAreaView,
-  Easing,
-  Image,
-  View,
-  Text,
-} from 'react-native';
 import padStart from 'lodash/padStart';
+import React, { Component } from 'react';
+import {
+  Animated, Easing,
+  Image, PanResponder, SafeAreaView, StyleSheet, Text, TouchableHighlight, TouchableWithoutFeedback, View
+} from 'react-native';
+import Video from 'react-native-video';
 
 export default class VideoPlayer extends Component {
   static defaultProps = {
     toggleResizeModeOnFullscreen: true,
     controlAnimationTiming: 500,
-    doubleTapTime: 130,
+    doubleTapTime: 500,
     playInBackground: false,
     playWhenInactive: false,
     resizeMode: 'contain',
@@ -31,6 +22,8 @@ export default class VideoPlayer extends Component {
     volume: 1,
     title: '',
     rate: 1,
+    doubleTapSeek:false,
+    repeatOnEnd:false,
   };
 
   constructor(props) {
@@ -87,8 +80,29 @@ export default class VideoPlayer extends Component {
       onBack: this.props.onBack || this._onBack.bind(this),
       onEnd: this.props.onEnd || this._onEnd.bind(this),
       onScreenTouch: this._onScreenTouch.bind(this),
-      onEnterFullscreen: this.props.onEnterFullscreen,
-      onExitFullscreen: this.props.onExitFullscreen,
+      onEnterFullscreen: () => {
+        if(this.props.onEnterFullscreen){
+          this.props.onEnterFullscreen()
+        }
+//  if(!this.state.paused){
+
+          let state = this.state;
+              state.paused = false;
+this.setState(state)
+        // }
+        
+        },
+      onExitFullscreen: () => {
+        if(this.props.onExitFullscreen){
+          this.props.onExitFullscreen()
+        }   
+        // if(!this.state.paused){
+
+          let state = this.state;
+              state.paused = false;
+this.setState(state)
+        // }
+        },
       onShowControls: this.props.onShowControls,
       onHideControls: this.props.onHideControls,
       onLoadStart: this._onLoadStart.bind(this),
@@ -248,6 +262,7 @@ export default class VideoPlayer extends Component {
    */
   _onSeek(data = {}) {
     let state = this.state;
+    
     if (state.scrubbing) {
       state.scrubbing = false;
       state.currentTime = data.currentTime;
@@ -256,7 +271,7 @@ export default class VideoPlayer extends Component {
       // the last seek command. In this case, perform the steps that have been postponed.
       if (!state.seeking) {
         this.setControlTimeout();
-        state.paused = state.originallyPaused;
+        // state.paused = state.originallyPaused;
       }
 
       this.setState(state);
@@ -269,7 +284,12 @@ export default class VideoPlayer extends Component {
    * Either close the video or go to a
    * new page.
    */
-  _onEnd() {}
+  _onEnd() {
+    if(this.props.repeatOnEnd){
+
+      this._onEndReached()
+    }
+  }
 
   /**
    * Set the error state to true which then
@@ -277,6 +297,7 @@ export default class VideoPlayer extends Component {
    *
    * @param {object} err  Err obj returned from <Video> component
    */
+  
   _onError(err) {
     let state = this.state;
     state.error = true;
@@ -295,7 +316,7 @@ export default class VideoPlayer extends Component {
     if (this.player.tapActionTimeout) {
       clearTimeout(this.player.tapActionTimeout);
       this.player.tapActionTimeout = 0;
-      this.methods.toggleFullscreen();
+      // this.methods.toggleFullscreen();
       const state = this.state;
       if (state.showControls) {
         this.resetControlTimeout();
@@ -621,8 +642,8 @@ export default class VideoPlayer extends Component {
    *
    * @return {float} position of seeker handle in px based on currentTime
    */
-  calculateSeekerPosition() {
-    const percent = this.state.currentTime / this.state.duration;
+  calculateSeekerPosition(currentTime) {
+    const percent = (currentTime || this.state.currentTime) / this.state.duration;
     return this.player.seekerWidth * percent;
   }
 
@@ -632,8 +653,8 @@ export default class VideoPlayer extends Component {
    *
    * @return {float} time in ms based on seekerPosition.
    */
-  calculateTimeFromSeekerPosition() {
-    const percent = this.state.seekerPosition / this.player.seekerWidth;
+  calculateTimeFromSeekerPosition(seekerPosition) {
+    const percent = (seekerPosition || this.state.seekerPosition) / this.player.seekerWidth;
     return this.state.duration * percent;
   }
 
@@ -1206,12 +1227,86 @@ export default class VideoPlayer extends Component {
     }
     return null;
   }
+  onDoublePress  (time)  {
+          let state = this.state;
+          if (this.player.tapActionTimeout) {
+      clearTimeout(this.player.tapActionTimeout);
+      this.player.tapActionTimeout = 0;
+         state.scrubbing = false;
+          state.currentTime = state.currentTime+ time;
+       const position = this.calculateSeekerPosition(state.currentTime);
+        this.setSeekerPosition(position);
+         
+         setTimeout(() => {
+              this.player.ref.seek(state.currentTime, this.player.scrubbingTimeStep);
+            }, 1);
+          // Seeking may be false here if the user released the seek bar while the player was still processing
+          // the last seek command. In this case, perform the steps that have been postponed.
+          if (!state.seeking) {
+            this.setControlTimeout();
+            state.paused = state.originallyPaused;
+          }
+          this.setState(state);
+    } else {
+      this.player.tapActionTimeout = setTimeout(() => {
+       
+        
+        this.player.tapActionTimeout = 0;
+      }, this.props.doubleTapTime);
+    }
+
+    };
+
+   renderForward() {
+    
+      return (
+        <View style={{position:'absolute',height:"60%",width:"30%",backgroundColor:'transparent',right:0,top:0,zIndex:1000,opacity:0.4,top:"20%",bottom:"20%"}} onStartShouldSetResponder =
+        {(evt) => this.onDoublePress(10)}>
+         
+        </View>
+      );
+ 
+  }
+
+  _onEndReached() {
+    let state = this.state;
+    state.paused = true;
+    state.showControls = true;
+    state.currentTime = 0;
+    this.setControlTimeout()
+    const position = this.calculateSeekerPosition(0);
+        this.setSeekerPosition(position);
+         setTimeout(() => {
+              this.player.ref.seek(0, this.player.scrubbingTimeStep);
+            }, 1);
+          // Seeking may be false here if the user released the seek bar while the player was still processing
+          // the last seek command. In this case, perform the steps that have been postponed.
+          if (!state.seeking) {
+            this.setControlTimeout();
+          }
+          this.setState(state)
+  }
+
+   renderRewind() {
+   
+      return (
+        <View style={{position:'absolute',height:"60%",width:"30%",backgroundColor:'transparent',left:0,top:0,zIndex:1000,opacity:0.4,top:"20%",bottom:"20%"}} onStartShouldSetResponder =
+        {(evt) => this.onDoublePress(-10)}>
+         
+        </View>
+      );
+ 
+  }
 
   /**
    * Provide all of our options and render the whole component.
    */
   render() {
     return (
+      <View  style={[styles.player.container, this.styles.containerStyle]}>
+
+      {this?.props?.doubleTapSeek && this.renderForward()}
+      {this?.props?.doubleTapSeek && this.renderRewind()}
       <TouchableWithoutFeedback
         onPress={this.events.onScreenTouch}
         style={[styles.player.container, this.styles.containerStyle]}>
@@ -1240,6 +1335,7 @@ export default class VideoPlayer extends Component {
           {this.renderBottomControls()}
         </View>
       </TouchableWithoutFeedback>
+      </View>
     );
   }
 }
@@ -1348,8 +1444,8 @@ const styles = {
       justifyContent: 'space-between',
       flexDirection: 'row',
       width: null,
-      margin: 12,
-      marginBottom: 18,
+      margin: 0,
+      marginBottom: 0,
     },
     bottomControlGroup: {
       alignSelf: 'stretch',
